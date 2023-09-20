@@ -3,15 +3,17 @@ import Tesseract from 'tesseract.js';
 import multer from 'multer';
 import { dirname } from "path";
 import { fileURLToPath } from "url";
-//import bodyParser from "body-parser";
 import { S3Client, PutObjectCommand,GetObjectCommand } from "@aws-sdk/client-s3";
 import dotenv from 'dotenv';
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
-//import {PrismaClient} from "@prisma/client";
 import crypto from 'crypto';
+import mongoose from "mongoose";
+// import catagory from "./catagory";
 dotenv.config();
 
+mongoose.connect("mongodb://127.0.0.1/CategoryTesting");
 const app = express();
+app.use(express.json())
 //const prisma=new PrismaClient();
 const port = 2000;
 
@@ -20,6 +22,17 @@ const bucketRegion=process.env.BUCKET_REGION
 const accessKey=process.env.ACCESS_KEY
 const secretAccesskey=process.env.SECRET_ACCESS_KEY
 
+const { Schema, model } = mongoose;
+
+const catagorySchema = new Schema({
+  Healthcare: { type: Number },
+  Leisure: { type: Number },
+  Vacations: { type: Number },
+  Essentials: { type: Number },
+  Groceries: { type: Number },
+  Misc: { type: Number },
+});
+export default model("catagory", catagorySchema);
 
 const randomImageName= (bytes=32)=> crypto.randomBytes(bytes).toString('hex');
 const s3= new S3Client({
@@ -46,32 +59,14 @@ app.use((req, res, next) => {
   }
 });
 
+app.use(express.json())
+//console.log("hello");
+
 app.get("/upload", async(req,res)=>{
   res.sendFile(__dirname+"/src/temp.html");
 })
 
-app.post("/upload/offline",upload.single('image'),async(req,res)=>{
-   
-  console.log("req.body: ", req.body);
-  console.log("req.file: ", req.file);
-  req.file.buffer
-  const imageName= randomImageName();
-  const params={
-    Bucket:bucketName,
-    Key: imageName,
-    Body: req.file.buffer,
-    ContentType: req.file.mimetype,
-  }
-  const command= new PutObjectCommand(params);
-  await s3.send(command)
-  const imageUrl = `https://s3-${bucketRegion}.amazonaws.com/${bucketName}/${accessKey}`;
-
-  console.log(imageUrl);
-
-  res.send(imageUrl)
-})
-
-app.post("/upload/online", upload.single("image"), async (req, res) => {
+app.post("/upload/offline", upload.single("image"), async (req, res) => {
   try {
     console.log("req.body: ", req.body);
     console.log("req.file: ", req.file);
@@ -99,14 +94,105 @@ app.post("/upload/online", upload.single("image"), async (req, res) => {
     console.error("Error uploading image:", error);
     res.status(500).send("Error uploading image.");
   }
+})
+
+app.post("/upload/online", upload.single("image"), async (req, res) => {
+  try {
+    console.log("req.body: ", req.body);
+    console.log("req.file: ", req.file);
+
+    if (!req.file) {
+      return res.status(400).send("No file uploaded.");
+    }
+
+    const imageName = randomImageName();
+    const params = {
+      Bucket: bucketName,
+      Key: imageName,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+    };
+
+    const command = new PutObjectCommand(params);
+    await s3.send(command);
+
+    const imageUrl = `https://s3-${bucketRegion}.amazonaws.com/${params.Bucket}/${params.Key}`;
+    console.log(imageUrl);
+    getTotalOnline(imageUrl); //return id, expenses, vendor
+    res.status(200).send(imageUrl);
+  } catch (error) {
+    console.error("Error uploading image:", error);
+    res.status(500).send("Error uploading image.");
+  }
 });
 
-app.get("/upload/catagorise",async(req,res)=>{
+// app.get("/upload/catagorise",async(req,res)=>{      //getURL  
 
-  const command = new GetObjectCommand("25839d4870a3245eb5f6477d89f917723b060f14b29e7aa20defe7710456f9bc");
-  const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
-  console.log(url);
-} )
+//   const command = new GetObjectCommand("25839d4870a3245eb5f6477d89f917723b060f14b29e7aa20defe7710456f9bc");
+//   const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
+//   console.log(url);
+// } )
+
+app.post("/upload/calc", (req,res)=>{
+  getCalc(req,res);
+})
+
+async function getCalc(req,res){
+  try{
+      const totalArray=req.body.total;
+      console.log(totalArray);
+      var cat=[0,0,0,0,0,0];
+      for(var i=0;i<totalArray.length;i++){
+          for(const key in totalArray[i]){
+              if (totalArray[i].hasOwnProperty(key)) {
+                  const value = totalArray[i][key];
+                  console.log(value[0]);
+                  value[1]= parseInt(value[1]);
+                  switch (value[0]) {
+                      case "healthcare":
+                        cat[0]+=value[1];
+                        break;
+                      case "leisure":
+                          cat[1]+=value[1];
+                        break;
+                      case "vacations":
+                          cat[2]+=value[1];
+                        break;
+                      case "essentials":
+                          cat[3]+=value[1];
+                        break;
+                      case "groceries":
+                          cat[4]+=value[1];
+                        break;
+                      case "misc":
+                          cat[5]+=value[1];
+                        break;
+                      default:
+                        break;
+                    }
+                }}}
+
+      console.log(cat);
+
+      const con= await catagory.create({
+          Healthcare: cat[0],
+          Leisure: cat[1],
+          Vacations: cat[2],
+          Essentials: cat[3],
+          Groceries: cat[4],
+          Misc: cat[5],
+      })
+      await con.save();
+      return res.status(201).json(totalArray);
+      
+  }
+  catch (error) {
+      return res.status(500).json({
+        message: error.message,
+      });
+    }
+}
+
 function isInteger(str) {
     // Use parseInt() to attempt conversion
     const integer = parseInt(str);
@@ -116,9 +202,7 @@ function isInteger(str) {
   }
 
 async function getTotalOffline(req,res){
-    Tesseract.recognize(
-   'https://pbs.twimg.com/media/FJPCYCdaMAMT1O3.jpg',
-   'eng',
+    Tesseract.recognize(ur,'eng',
    { logger: m => console.log(m) }
   ).then(({ data: { text } }) => {
       console.log("\nHello");
@@ -149,36 +233,40 @@ async function getTotalOffline(req,res){
 }
 //getTotalOffline();
 
-async function getTotalOnline(req,res){
-    Tesseract.recognize(
-  'https://cdsassets.apple.com/live/7WUAS350/images/ios/ios-16-iphone-14-pro-wallet-apple-card-latest-transactions.png',
-  'eng',
-  { logger: m => console.log(m) }
+async function getTotalOnline(ur){
+    Tesseract.recognize(ur,'eng',
+      { logger: m => console.log(m) }
 ).then(({ data: { text } }) => {
     console.log("\nHello");
 
   const lst=text.split("\n");
   console.log(lst);
   var arr=[];
+  var vendor=[];
   for(let i in lst){
-      if(lst[i].toLowerCase().includes("$")){
-          const index=lst[i].toLowerCase().indexOf("$");
-          const spl=lst[i].slice(index+1,lst[i].length);
-          //console.log(spl.split(" "));
-          const smth=spl.split(" ");
-          //console.log("\nHello");
-          //console.log(smth);
-          for(let j in smth){
-                  if(isInteger(smth[j])){
-                          arr.push(parseFloat(smth[j]));
-                      
-                  };
+      if(lst[i].toLowerCase().includes("-")){
+        console.log(lst[i]);
+        const index=lst[i].toLowerCase().indexOf("-");
+        if(isInteger(lst[i][index+2])){
+        const spl=lst[i].slice(index+2,lst[i].length);
+        const spl1=lst[i].slice(2,index);
+        //console.log(spl);
+        arr.push(spl)    
+        vendor.push(spl1);
+      }
+          };
 
           }
-      }
-  }
+      
   console.log(arr);
-  //console.log(arr.length);
+  console.log(vendor);
+  var actual=[];
+  for(var i=0;i<arr.length;i++){
+    var temp={"id":i+1, "vendor":vendor[i], "expense":arr[i]};
+    actual.push(temp);
+  }
+  console.log(actual)
+  return actual;
   }).catch((err)=>{
       console.log(err);
   });

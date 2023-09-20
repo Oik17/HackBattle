@@ -91,7 +91,7 @@ export default function Home() {
           </div>
         </div>
         <div className="border-2 border-white mt-10 flex flex-col justify-between h-[40vh] py-5 bg-black/40 rounded-2xl border-dashed w-[50vw] sm:w-auto justify-items-center">
-          <input type="file" name="image" multiple onChange={handleFileChange} className="px-10 font-agdasima text-xl sm:text-2xl "/>
+          <input method="POST" type="file" name='image' id='image' accept='image/*'enctype="multipart/form-data" multiple onChange={handleFileChange} className="px-10 font-agdasima text-xl sm:text-2xl "/>
           <button onClick={handleUpload} className="bg-white font-agdasima text-black min-w-[13vw] mx-auto text-2xl">Upload Files</button>
         </div>
       </main>
