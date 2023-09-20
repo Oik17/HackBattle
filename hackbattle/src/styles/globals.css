@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Agdasima&family=Cousine&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -24,4 +25,8 @@ body {
       rgb(var(--background-end-rgb))
     )
     rgb(var(--background-start-rgb));
+}
+
+*{
+  overflow: hidden;
 }
