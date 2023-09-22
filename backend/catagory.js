@@ -10,5 +10,5 @@ const catagorySchema = new Schema({
   groceries: { type: Number },
   misc: { type: Number },
 });
-
-export default model("catagory", catagorySchema);
+const Catagory= model ("catagory", catagoryschema);
+export default Catagory

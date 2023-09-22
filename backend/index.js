@@ -8,7 +8,8 @@ import dotenv from 'dotenv';
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import crypto from 'crypto';
 import mongoose from "mongoose";
-// import catagory from "./catagory";
+//import catagory from "../catagory";
+//const totalCost=require("./totalSchema");
 dotenv.config();
 
 mongoose.connect("mongodb://127.0.0.1/CategoryTesting");
@@ -22,18 +23,6 @@ const bucketRegion=process.env.BUCKET_REGION
 const accessKey=process.env.ACCESS_KEY
 const secretAccesskey=process.env.SECRET_ACCESS_KEY
 
-const { Schema, model } = mongoose;
-
-const catagorySchema = new Schema({
-  Healthcare: { type: Number },
-  Leisure: { type: Number },
-  Vacations: { type: Number },
-  Essentials: { type: Number },
-  Groceries: { type: Number },
-  Misc: { type: Number },
-});
-export default model("catagory", catagorySchema);
-
 const randomImageName= (bytes=32)=> crypto.randomBytes(bytes).toString('hex');
 const s3= new S3Client({
   region: bucketRegion,
@@ -45,7 +34,7 @@ const s3= new S3Client({
 const storage = multer.memoryStorage()
 const upload = multer({ storage: storage })
 const __dirname = dirname(fileURLToPath(import.meta.url));
-//app.use(bodyParser.urlencoded({extended: true}));
+
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
@@ -66,7 +55,7 @@ app.get("/upload", async(req,res)=>{
   res.sendFile(__dirname+"/src/temp.html");
 })
 
-app.post("/upload/offline", upload.single("image"), async (req, res) => {
+app.post("/uploadFile/offline", upload.single("image"), async (req, res) => {
   try {
     console.log("req.body: ", req.body);
     console.log("req.file: ", req.file);
@@ -89,6 +78,7 @@ app.post("/upload/offline", upload.single("image"), async (req, res) => {
     const imageUrl = `https://s3-${bucketRegion}.amazonaws.com/${params.Bucket}/${params.Key}`;
     console.log(imageUrl);
 
+    getTotalOffline(imageUrl); //return id, expenses, vendor
     res.status(200).send(imageUrl);
   } catch (error) {
     console.error("Error uploading image:", error);
@@ -96,7 +86,7 @@ app.post("/upload/offline", upload.single("image"), async (req, res) => {
   }
 })
 
-app.post("/upload/online", upload.single("image"), async (req, res) => {
+app.post("/uploadFile/online", upload.single("image"), async (req, res) => {
   try {
     console.log("req.body: ", req.body);
     console.log("req.file: ", req.file);
@@ -126,20 +116,19 @@ app.post("/upload/online", upload.single("image"), async (req, res) => {
   }
 });
 
-// app.get("/upload/catagorise",async(req,res)=>{      //getURL  
+app.post("/stats/",(req,res)=>{                    //Calculate total from bill and add to db
+  getTotalOffline(req.body.url);  
+  res.status(201).send("Done");
+})
 
-//   const command = new GetObjectCommand("25839d4870a3245eb5f6477d89f917723b060f14b29e7aa20defe7710456f9bc");
-//   const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
-//   console.log(url);
-// } )
 
-app.post("/upload/calc", (req,res)=>{
+app.post("/categorise/online", (req,res)=>{   //Calcuate amount for each catagory
   getCalc(req,res);
 })
 
 async function getCalc(req,res){
   try{
-      const totalArray=req.body.total;
+      const totalArray=req.body.total;     //total format: { "total": [{"1": ["leisure","543"]},{ "2": ["healthcare","929"]},{"3": ["healthcare","899"]}] }
       console.log(totalArray);
       var cat=[0,0,0,0,0,0];
       for(var i=0;i<totalArray.length;i++){
@@ -175,12 +164,12 @@ async function getCalc(req,res){
       console.log(cat);
 
       const con= await catagory.create({
-          Healthcare: cat[0],
-          Leisure: cat[1],
-          Vacations: cat[2],
-          Essentials: cat[3],
-          Groceries: cat[4],
-          Misc: cat[5],
+          healthcare: cat[0],
+          leisure: cat[1],
+          vacations: cat[2],
+          essentials: cat[3],
+          groceries: cat[4],
+          misc: cat[5],
       })
       await con.save();
       return res.status(201).json(totalArray);
@@ -201,32 +190,40 @@ function isInteger(str) {
     return Number.isFinite(integer) && Number.isInteger(integer);
   }
 
-async function getTotalOffline(req,res){
-    Tesseract.recognize(ur,'eng',
-   { logger: m => console.log(m) }
-  ).then(({ data: { text } }) => {
-      console.log("\nHello");
+async function getTotalOffline(ur){
+  Tesseract.recognize(ur,'eng',
+  { logger: m => console.log(m) }
+ ).then(async ({ data: { text } }) => {
+     console.log("\nHello");
 
-  const lst=text.split("\n");
-    console.log(lst);
-    var num=0;
-    for(let i in lst){
-        if(lst[i].toLowerCase().includes("total")){
-            const index=lst[i].toLowerCase().indexOf("total");
-            const spl=lst[i].slice(index,lst[i].length);
-            console.log(spl.split(" "));
-            const smth=spl.split(" ");
-            for(let j in smth){
-                    if(isInteger(smth[j])){
-                        if(smth[j]>num){
-                            num=smth[j];
-                        }
-                    };
+ const lst=text.split("\n");
+   console.log(lst);
+   var num=0;
+   for(let i in lst){
+       if(lst[i].toLowerCase().includes("total")){
+           const index=lst[i].toLowerCase().indexOf("total");
+           const spl=lst[i].slice(index,lst[i].length);
+           console.log(spl.split(" "));
+           const smth=spl.split(" ");
+           for(let j in smth){
+                   if(isInteger(smth[j])){
+                       if(smth[j]>num){
+                           num=smth[j];
+                       }
+                   };
 
-            }
-        }
-    }
-    console.log(num);
+           }
+       }
+   }
+   console.log(num);
+  //  const cost= await totalCost.create({
+  //      total: num, 
+  //      url: ur
+  //  })
+  //  await cost.save();
+    var temp={"id":1, "total": num}
+    console.log(temp)
+    return temp
     }).catch((err)=>{
         console.log(err);
     });
