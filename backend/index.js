@@ -8,8 +8,8 @@ import dotenv from 'dotenv';
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import crypto from 'crypto';
 import mongoose from "mongoose";
-//import catagory from "../catagory";
-//const totalCost=require("./totalSchema");
+import {catagory} from "./models/catagory";
+//const totalCost=require("./total");
 dotenv.config();
 
 mongoose.connect("mongodb://127.0.0.1/CategoryTesting");
@@ -163,16 +163,16 @@ async function getCalc(req,res){
 
       console.log(cat);
 
-      const con= await catagory.create({
-          healthcare: cat[0],
-          leisure: cat[1],
-          vacations: cat[2],
-          essentials: cat[3],
-          groceries: cat[4],
+       const con= await catagory.create({
+           healthcare: cat[0],
+           leisure: cat[1],
+           vacations: cat[2],
+           essentials: cat[3],
+           groceries: cat[4],
           misc: cat[5],
       })
       await con.save();
-      return res.status(201).json(totalArray);
+      return res.status(201).json(cat);
       
   }
   catch (error) {
